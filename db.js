@@ -5,11 +5,11 @@ const _ = require('lodash')
 const AWS = require('aws-sdk')
 const process = require('process')
 
-const host_param = '/priapus/development/rds_database_instance_address'
-const port_param = '/priapus/development/rds_database_port'
-const database_param = '/priapus/development/rds_database_name'
-const user_param = '/priapus/development/rds_database_username'
-const password_param = '/priapus/development/rds_database_password'
+const host_param = '/zamboni/development/rds_database_instance_address'
+const port_param = '/zamboni/development/rds_database_port'
+const database_param = '/zamboni/development/rds_database_name'
+const user_param = '/zamboni/development/rds_database_username'
+const password_param = '/zamboni/development/rds_database_password'
 
 function connect() {
     const ssm = new AWS.SSM({region: process.env.AWS_REGION || 'us-east-1'});

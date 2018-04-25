@@ -1,25 +1,18 @@
-const indexQuery = `
-select
-    a.attname as column_name
-from
-    pg_class t,
-    pg_class i,
-    pg_index ix,
-    pg_attribute a
-where
-    t.oid = ix.indrelid
-    and i.oid = ix.indexrelid
-    and a.attrelid = t.oid
-    and a.attnum = ANY(ix.indkey)
-    and t.relkind = 'r'
-    and t.relname = $1
-order by
-    t.relname,
-    i.relname;`;
+const _ = require('lodash')
 
-const getIndexedColumns = (pgm, tableName) => {
+const indexQuery = 'select indexdef from pg_indexes where tablename = $1';
+
+const getIndices = (pgm, tableName) => {
     return pgm.db.query(indexQuery, tableName).then(result => {
-        return result.rows.map(r => r.column_name)
+        return result.rows.map(row => {
+            const match = /CREATE\s*(UNIQUE)?\s*INDEX (?:\S+?) ON (?:\S+?) USING (\S+) \((\S+)\s*(\S*?)\)/.exec(row.indexdef)
+            return {
+                unique: match[1] === 'UNIQUE',
+                method: match[2],
+                column: match[3],
+                operatorClass: match[4]
+            }
+        })
     })
 };
 
@@ -27,20 +20,24 @@ const getHistoryTableName = tableName => {
     return `${tableName}_history`
 };
 
-async function createChildTable(pgm, tableName, baseTableName) {
+function createChildTable(pgm, tableName, baseTableName, fields = {}) {
     const historyTableName = getHistoryTableName(tableName)
-    pgm.createTable(tableName, {
+    pgm.createTable(tableName, _.merge({
         id: 'id'
-    }, {
+    }, fields), {
         inherits: baseTableName
     });
 
-    return getIndexedColumns(pgm, [baseTableName]).then(columns => {
-        columns.forEach(column => {
-            pgm.createIndex(tableName, column)
+    return getIndices(pgm, [baseTableName]).then(index => {
+        index.forEach(index => {
+            if (index.column !== 'id') {
+                pgm.createIndex(tableName, index.column, {method: index.method, operatorClass: index.operatorClass, unique: index.unique})
+            }
         });
 
-        pgm.createTable(historyTableName, {}, {
+        pgm.createTable(historyTableName, {
+            history_id: 'id'
+        }, {
             like: tableName
         });
         pgm.createTrigger(tableName, 'versioning_trigger', {
